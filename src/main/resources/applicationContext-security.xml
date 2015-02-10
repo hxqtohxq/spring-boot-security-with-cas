@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans:beans xmlns="http://www.springframework.org/schema/security"
+			xmlns:beans="http://www.springframework.org/schema/beans" 
+			xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+			xsi:schemaLocation="http://www.springframework.org/schema/beans
+			http://www.springframework.org/schema/beans/spring-beans-3.1.xsd
+			http://www.springframework.org/schema/security
+			http://www.springframework.org/schema/security/spring-security-3.1.xsd">
+			
+    <http auto-config="true" entry-point-ref="casProcessingFilterEntryPoint">
+		
+		<intercept-url pattern="/*" access="IS_AUTHENTICATED_ANONYMOUSLY, ROLE_GUEST" requires-channel="any"/>
+       
+        <custom-filter ref="casAuthenticationFilter" after="CAS_FILTER"/>
+        <custom-filter ref="sessionManagementFilter" before="SESSION_MANAGEMENT_FILTER" />
+    </http>
+
+	<beans:bean id="serviceProperties" class="org.springframework.security.cas.ServiceProperties">
+        <beans:property name="service" value="${sso.online.home.url}/${sso.online.sec_check.uri}"/>
+        <beans:property name="sendRenew" value="false"/>
+    </beans:bean>
+    
+    <authentication-manager alias="authenticationManager">
+        <authentication-provider ref="casAuthenticationProvider" />
+        <authentication-provider user-service-ref="AuthenticationService" />
+    </authentication-manager>
+
+
+    <beans:bean id="casAuthenticationFilter" class="vn.com.web.vnds.web.filter.CasAuthenticationFilter">
+        <beans:property name="authenticationManager" ref="authenticationManager"/>
+        <beans:property name="filterProcessesUrl" value="/${sso.online.sec_check.uri}"/>
+        <beans:property name="authenticationFailureHandler">
+            <beans:bean class="org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler">
+                <beans:property name="defaultFailureUrl" value="/casfailed.jsp"/>
+            </beans:bean>
+        </beans:property>
+        <beans:property name="authenticationSuccessHandler"> 
+            <beans:bean class="org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler"> 
+                <!-- <beans:property name="targetUrlParameter" value="${sso.online.home.proxyReceptorUrl}"/> --> 
+            </beans:bean>
+        </beans:property> 
+
+        <beans:property name="proxyGrantingTicketStorage" ref="proxyGrantingTicketStorage" />
+        <!-- <beans:property name="proxyReceptorUrl" value="${sso.online.home.proxyReceptorUrl}" /> -->
+    </beans:bean>
+
+
+    <beans:bean id="casProcessingFilterEntryPoint" class="vn.com.web.vnds.web.security.VNDSCasAuthenticationEntryPoint">
+        <beans:property name="fwAuthErrorUrlJson" value="/WEB-INF/jsps/exceptions/VNDSCasAuthRequiredAJAX.jsp"/>
+		<beans:property name="fwAuthErrorUrlHtml" value="/WEB-INF/jsps/exceptions/VNDSCasAuthRequiredAJAXHtml.jsp"/>
+
+		<beans:property name="loginUrl" value="${sso.online.login.url}"/>
+		<beans:property name="serviceProperties" ref="serviceProperties"/>
+    </beans:bean>
+
+    <beans:bean id="casAuthenticationProvider" class="org.springframework.security.cas.authentication.CasAuthenticationProvider">
+        <beans:property name="userDetailsService" ref="AuthenticationService"/>
+        <beans:property name="serviceProperties" ref="serviceProperties" />
+        <beans:property name="ticketValidator">
+            <beans:bean class="vn.com.web.vnds.web.security.VNDSCasServiceTicketValidator">
+                <beans:constructor-arg index="0" value="${sso.online.ticket.validation.url}" />
+                <beans:property name="externalServices" ref="TicketProxyUrlMapping"/>
+                <beans:property name="proxyGrantingTicketStorage" ref="proxyGrantingTicketStorage" />
+                <beans:property name="customParameters">
+                	<beans:map>
+                		<beans:entry key="_vnds_a" value="online"/>
+                	</beans:map>
+                </beans:property>
+                <beans:property name="renew" value="false"/>
+            </beans:bean>
+        </beans:property>
+        <beans:property name="key" value="an_id_for_this_auth_provider_only"/>
+    </beans:bean>
+
+
+    <beans:bean id="proxyGrantingTicketStorage" class="org.jasig.cas.client.proxy.ProxyGrantingTicketStorageImpl" />
+
+   	 
+   	 <!-- SessionManagementFilter -->
+   	 <beans:bean id="sessionManagementFilter" class="org.springframework.security.web.session.SessionManagementFilter" >
+        <beans:constructor-arg ref="securityContextRepository" />
+        <beans:property name="invalidSessionStrategy">
+            <beans:bean class="org.springframework.security.web.session.SimpleRedirectInvalidSessionStrategy">
+                <!-- <beans:constructor-arg name="invalidSessionUrl" value="${sso.invalidSessionUrl}" /> -->
+                <beans:constructor-arg name="invalidSessionUrl" value="" />
+            </beans:bean>
+        </beans:property>
+    </beans:bean>
+    <beans:bean id="securityContextRepository" class="org.springframework.security.web.context.HttpSessionSecurityContextRepository" />
+</beans:beans>
